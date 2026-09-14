@@ -44,26 +44,35 @@ actions:
 mode: single
 
 # ---------------------------------------------------------------------------
-# Alternative: trigger on the raw MQTT message instead of the entity state.
-# Fires on every single detection, including repeats of the same class in a
-# row, since it doesn't depend on the state actually changing.
+# NOTE: as of this version, the add-on's discovery config sets force_update,
+# so HA now fires a state_changed event on EVERY MQTT message, even when the
+# value repeats (e.g. two glass_break events in a row). That means the plain
+# "trigger: state ... to: glass_break" pattern above already catches every
+# occurrence on its own -- you generally don't need the attribute-based
+# pattern below anymore. Kept as a reference in case you ever disable
+# force_update, or want to trigger on a class regardless of which one fired
+# last without listing every "to:" value separately.
 # ---------------------------------------------------------------------------
-# alias: Any Watched Sound (raw MQTT)
-# triggers:
-#   - trigger: mqtt
-#     topic: home/sensors/dog_bark
-# conditions:
-#   - condition: template
-#     value_template: "{{ trigger.payload_json.event == 'glass_break' }}"
-# actions:
-#   - action: notify.notify
-#     data:
-#       message: >-
-#         🚨 {{ trigger.payload_json.event }} detected
-#         ({{ trigger.payload_json.score | float | round(2) }})
-#         via {{ trigger.payload_json.detector }}
-#         on {{ trigger.payload_json.device_id }}
-# mode: single
+# Catch EVERY occurrence, even repeats of the same class back-to-back.
+# A plain state trigger only fires on a CHANGE, so two dog_bark events in a
+# row with nothing else in between would only fire once. The last_triggered
+# attribute (epoch seconds) changes on every single publish, so triggering on
+# IT instead of the main state catches every event; filter by class with a
+# condition.
+# ---------------------------------------------------------------------------
+alias: Every Dog Bark (including repeats)
+triggers:
+  - trigger: state
+    entity_id: sensor.barkdetector_sound
+    attribute: last_triggered
+conditions:
+  - condition: template
+    value_template: "{{ trigger.to_state.state == 'dog_bark' }}"
+actions:
+  - action: light.turn_on
+    target:
+      entity_id: light.garden
+mode: queued
 
 # ---------------------------------------------------------------------------
 # Only notify at night, and only for confident detections.

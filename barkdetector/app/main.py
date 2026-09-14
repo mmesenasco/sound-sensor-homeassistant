@@ -312,6 +312,7 @@ def main() -> None:
 
     config = load_config(config_path)
     setup_logging(config.get("logging", {}))
+    debug_diagnostics = str(config.get("logging", {}).get("level", "INFO")).upper() == "DEBUG"
     device_id = config.get("device_id", "linux-mic-01")
 
     audio_cfg = config.get("audio", {})
@@ -421,16 +422,30 @@ def main() -> None:
                         continue
 
                 triggered_label = smoother.update(label, timestamp, score)
+
+                # When nothing matched, show what YAMNet actually thought this
+                # window was -- e.g. a loud crash that scores high on "Bang" or
+                # "Noise" instead of any watched class. Only computed in debug
+                # (it's a second inference pass) so it costs nothing normally.
+                top_overall = ""
+                if debug_diagnostics and detector_name == "yamnet" and label is None:
+                    try:
+                        top_name, top_score = detector.top_label(scored_window)
+                        top_overall = f" top_overall={top_name}({top_score:.3f})"
+                    except Exception:  # pragma: no cover - diagnostics must never crash the loop
+                        pass
+
                 # rms/peak make a dead microphone obvious: PortAudio can open a
                 # silent device and look perfectly healthy while scoring zeros.
                 logger.debug(
-                    "Window score {:.3f} label={} detector={} rms={:.5f} peak={:.5f} gain={:.1f}x",
+                    "Window score {:.3f} label={} detector={} rms={:.5f} peak={:.5f} gain={:.1f}x{}",
                     score,
                     label,
                     detector_name,
                     float(np.sqrt(np.mean(np.square(window)))),
                     float(np.max(np.abs(window))) if window.size else 0.0,
                     gain_applied,
+                    top_overall,
                 )
 
                 if triggered_label:

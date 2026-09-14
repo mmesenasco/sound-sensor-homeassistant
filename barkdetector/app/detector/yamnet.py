@@ -111,7 +111,7 @@ class YAMNetClassifier:
                 best_name = name
                 best_score = score
 
-        return best_name, best_score
+        return best_name, max(best_score, 0.0)
 
     def top_label(self, samples: np.ndarray) -> Tuple[str, float]:
         """Return YAMNet's single highest-scoring label overall, for debugging.

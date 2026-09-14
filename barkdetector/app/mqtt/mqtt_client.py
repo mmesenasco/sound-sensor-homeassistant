@@ -103,6 +103,12 @@ class MQTTPublisher:
                 "'detector': value_json.detector} | tojson }}"
             ),
             "icon": "mdi:ear-hearing",
+            # Without this, HA silently drops a new MQTT message whose value
+            # equals the current state -- no history entry, no state_changed
+            # event, no automation trigger. Two glass_break events in a row
+            # (or any repeat of the last detected class) would otherwise
+            # vanish even though MQTT delivered them successfully.
+            "force_update": True,
             "device": {
                 "identifiers": [object_id],
                 "name": device_name,
