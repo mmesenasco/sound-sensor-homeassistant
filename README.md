@@ -1,4 +1,3 @@
-<img src="barkdetector/logo.png" alt="Bark Detector" width="320">
 
 # Bark Detector — Home Assistant add-on repository
 
