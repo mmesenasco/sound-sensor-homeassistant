@@ -7,7 +7,7 @@ machine**, and get a `binary_sensor` you can automate on.
 Audio is classified locally by Google's [YAMNet][yamnet] via TensorFlow Lite.
 Nothing leaves your network.
 
-[![Open your Home Assistant instance and show the add add-on repository dialog.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=[https://github.com/mmesenasco/sound-sensor-homeassistant])
+[![Open your Home Assistant instance and show the add add-on repository dialog.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https://github.com/mmesenasco/sound-sensor-homeassistant)
 
 ## Install
 
