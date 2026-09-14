@@ -1,0 +1,87 @@
+# Example automations for the Sound Detector add-on (formerly "Bark Detector").
+# Paste into Settings -> Automations -> Create -> Edit in YAML.
+#
+# The add-on now creates a single `sensor.<device_id>_sound` entity whose
+# STATE is the name of whichever watched class last matched: dog_bark,
+# glass_break, alarm, scream, knock_doorbell, or any custom class you added.
+# Attributes: score (confidence 0-1), last_triggered (epoch seconds), detector.
+
+# ---------------------------------------------------------------------------
+# One trigger per sound, each with its own action.
+# The sensor holds its last value until the next event (no "off" state), so
+# these fire on the state CHANGE to that value -- if the same sound repeats
+# back-to-back with nothing else detected in between, this won't refire; see
+# the "raw MQTT" alternative below if you need every single occurrence.
+# ---------------------------------------------------------------------------
+alias: Dog Bark - Turn On Light
+triggers:
+  - trigger: state
+    entity_id: sensor.barkdetector_sound
+    to: "dog_bark"
+conditions: []
+actions:
+  - action: light.turn_on
+    target:
+      entity_id: light.garden
+mode: single
+
+---
+alias: Glass Break - Activate Siren
+triggers:
+  - trigger: state
+    entity_id: sensor.barkdetector_sound
+    to: "glass_break"
+conditions: []
+actions:
+  - action: switch.turn_on
+    target:
+      entity_id: switch.siren
+  - action: notify.notify
+    data:
+      message: >-
+        🚨 Glass break detected (confidence
+        {{ state_attr('sensor.barkdetector_sound', 'score') }})
+mode: single
+
+# ---------------------------------------------------------------------------
+# Alternative: trigger on the raw MQTT message instead of the entity state.
+# Fires on every single detection, including repeats of the same class in a
+# row, since it doesn't depend on the state actually changing.
+# ---------------------------------------------------------------------------
+# alias: Any Watched Sound (raw MQTT)
+# triggers:
+#   - trigger: mqtt
+#     topic: home/sensors/dog_bark
+# conditions:
+#   - condition: template
+#     value_template: "{{ trigger.payload_json.event == 'glass_break' }}"
+# actions:
+#   - action: notify.notify
+#     data:
+#       message: >-
+#         🚨 {{ trigger.payload_json.event }} detected
+#         ({{ trigger.payload_json.score | float | round(2) }})
+#         via {{ trigger.payload_json.detector }}
+#         on {{ trigger.payload_json.device_id }}
+# mode: single
+
+# ---------------------------------------------------------------------------
+# Only notify at night, and only for confident detections.
+# ---------------------------------------------------------------------------
+# alias: Night Alarm/Siren Alert
+# triggers:
+#   - trigger: state
+#     entity_id: sensor.barkdetector_sound
+#     to: "alarm"
+# conditions:
+#   - condition: time
+#     after: "22:00:00"
+#     before: "07:00:00"
+#   - condition: template
+#     value_template: >-
+#       {{ state_attr('sensor.barkdetector_sound', 'score') | float(0) > 0.5 }}
+# actions:
+#   - action: notify.mobile_app_yourphone
+#     data:
+#       message: "🚨 Alarm/siren sound at {{ now().strftime('%H:%M') }}"
+# mode: single
