@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test MQTT connection and subscribe to bark events."""
+"""Test MQTT connection and subscribe to sound events."""
 
 import paho.mqtt.client as mqtt
 import os
@@ -27,7 +27,7 @@ def on_connect(client, userdata, flags, rc):
         print("   5: Not authorized")
 
 def on_message(client, userdata, msg):
-    print(f"\n🐶 BARK EVENT RECEIVED!")
+    print(f"\n👂 SOUND EVENT RECEIVED!")
     print(f"   Topic: {msg.topic}")
     try:
         payload = json.loads(msg.payload.decode())
@@ -63,7 +63,7 @@ try:
     client.connect(BROKER_HOST, BROKER_PORT, 60)
     client.loop_start()
 
-    print("👂 Listening for bark events... (Press Ctrl+C to stop)")
+    print("👂 Listening for sound events... (Press Ctrl+C to stop)")
     while True:
         time.sleep(1)
 

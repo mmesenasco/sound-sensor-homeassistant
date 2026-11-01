@@ -1,7 +1,9 @@
-# Bark Detector
+# Sound Detector
 
 Listens to a USB microphone plugged into your Home Assistant machine, classifies
-audio with Google's YAMNet model, and publishes a bark event to MQTT.
+audio with Google's YAMNet model, and publishes an event to MQTT whenever one of
+the sounds you watch for is heard (glass breaking, alarms, screams, knocks,
+speech, dog barks, or your own groups).
 
 Unlike camera-based sound detection (Frigate, yamcam), this reads a **locally
 attached microphone**, so it works in rooms with no camera.
@@ -19,14 +21,16 @@ A Raspberry Pi 4 runs this easily. Measured on a Pi 4 with Home Assistant OS
 
 1. Add this repository under **Settings → Add-ons → Add-on Store → ⋮ →
    Repositories**.
-2. Install **Bark Detector**. The image is built on your machine, which takes
+2. Install **Sound Detector**. The image is built on your machine, which takes
    roughly **9 minutes on a Raspberry Pi 4** and shows no progress in the log.
    That is normal — it is unpacking numpy, scipy and TensorFlow Lite, and the
    time is disk-bound. Watch **Settings → System → Logs → Supervisor** if you
    want to see the build proceed.
 3. Plug in the USB microphone **before starting the add-on**.
-4. Start it, then open the **Log** tab. You want to see
-   `YAMNet detector initialised successfully`.
+4. Enable **Watchdog** on the add-on page (see "Recovering from a lost
+   microphone" below).
+5. Start it, then open the **Log** tab. You want to see
+   `YAMNet classifier initialised with N watched class(es)`.
 
 On first start the add-on downloads the YAMNet model (~14 MB) into the image's
 `models/` directory if it is not already bundled.
@@ -66,7 +70,9 @@ appears; a reboot after plugging it in usually resolves it.
 | --- | --- | --- |
 | `device_id` | `barkdetector` | Identifies this sensor in MQTT payloads and discovery |
 | `detection_mode` | `yamnet` | `yamnet` (ML) or `heuristic` (RMS + band energy) |
-| `conf_threshold` | `0.2` | YAMNet confidence required to call a window a bark |
+| `watched_events` | `dog_bark,glass_break,alarm,scream` | Built-in sound groups to watch: `dog_bark`, `glass_break`, `alarm`, `scream`, `knock_doorbell` |
+| `custom_watched_classes` | *(empty)* | JSON array of your own groups, e.g. `[{"name":"speech","label_substrings":["speech","conversation"]}]` |
+| `conf_threshold` | `0.2` | YAMNet confidence required to count a window as a match |
 | `normalize_windows` | `false` | Boost quiet windows before inference; helps distant sounds |
 | `normalize_noise_floor` | `0.005` | Windows quieter than this are not boosted |
 | `normalize_max_gain` | `30` | Ceiling on the boost applied to one window |
@@ -74,8 +80,8 @@ appears; a reboot after plugging it in usually resolves it.
 | `windows_total` | `5` | Size of the sliding vote window |
 | `windows_required` | `2` | Positive windows needed within it to fire an event |
 | `cooldown_seconds` | `10` | Minimum gap between events |
-| `mqtt_topic` | `home/sensors/dog_bark` | Topic events are published to |
-| `mqtt_discovery` | `true` | Auto-create the Home Assistant binary sensor |
+| `mqtt_topic` | `home/sensors/dog_bark` | Topic events are published to (default kept from Bark Detector for compatibility) |
+| `mqtt_discovery` | `true` | Auto-create the Home Assistant sound sensor |
 | `capture_enabled` | `false` | Save a WAV around each event to `/media/barkdetector` |
 | `capture_normalize_peak` | `0.7` | Amplify saved clips to this peak so quiet events are audible; `0` saves raw |
 | `capture_retention_hours` | `24` | Clips older than this are deleted |
@@ -88,25 +94,33 @@ external broker — those manual values take priority when present.
 
 ## The entity
 
-With `mqtt_discovery` on, a `binary_sensor` named **Bark** appears under a *Bark
-Detector* device. It turns on when an event is published and clears itself after
-10 seconds, since the detector only reports barks and never an "all clear".
+With `mqtt_discovery` on, a `sensor` named **Sound** appears under a *Sound
+Detector* device. Its **state is the name of the last detected sound**
+(`glass_break`, `alarm`, `dog_bark`, or a custom group name) and it keeps that
+value until the next event — there is no "off" state. Attributes:
 
-Example automation:
+- `score` — YAMNet confidence of the detection (0–1)
+- `last_triggered` — epoch seconds of the event; changes on every publish
+- `detector` — `yamnet` or `heuristic`
+
+Discovery sets `force_update`, so every MQTT message produces a state change in
+Home Assistant even when the same sound repeats.
+
+Example automation (check the exact entity id in your installation):
 
 ```yaml
 automation:
-  - alias: "Notify on bark"
+  - alias: "Notify on glass break"
     triggers:
       - trigger: state
-        entity_id: binary_sensor.bark_detector_bark
-        to: "on"
+        entity_id: sensor.sound_detector_sound
+        to: "glass_break"
     actions:
       - action: notify.notify
         data:
           message: >-
-            Dog barking detected
-            (confidence {{ state_attr('binary_sensor.bark_detector_bark', 'score') }})
+            Glass break detected
+            (confidence {{ state_attr('sensor.sound_detector_sound', 'score') }})
 ```
 
 The raw MQTT payload is also available if you prefer a manual sensor:
@@ -144,36 +158,54 @@ Log files are separately capped at 25 MB (5 MB × 5 rotations).
 
 ## Tuning
 
-Start with `log_level: debug` and watch the per-window scores while your dog
-barks.
+Start with `log_level: debug` and watch the per-window scores while you play or
+make the sound you want to catch.
 
-- **Missing barks** — lower `conf_threshold` (try 0.15) or lower
-  `windows_required` to 2. Small or distant dogs score lower.
+- **Missed events** — lower `conf_threshold` (try 0.15) or lower
+  `windows_required` to 2. Quiet or distant sources score lower.
 - **False positives** from speech or TV — raise `conf_threshold` toward 0.4, or
   raise `windows_required`, which demands the sound persist rather than spike.
-- **Events arriving in bursts** — raise `cooldown_seconds`.
+- **Events arriving in bursts** — raise `cooldown_seconds`. Continuous sources
+  such as a person on a call or a TV produce `speech` every few seconds for as
+  long as they last; that is correct behaviour, so filter it in your automation
+  (e.g. only when nobody is home) or use a long cooldown.
 
 `windows_required` / `windows_total` is the main precision lever, but mind the
 arithmetic: with a 0.975 s window and a 0.5 s hop, any instant falls in only
-**2** windows. A single short bark can therefore never satisfy
-`windows_required: 3` — that setting demands ~1.5 s of sustained sound. Use 2 to
-catch one-off barks, 3 to reject transients like doors and dropped cutlery.
+**2** windows. A single short sound (a bark, a knock) can therefore never
+satisfy `windows_required: 3` — that setting demands ~1.5 s of sustained sound.
+Use 2 to catch one-off events, 3 to reject transients like doors and dropped
+cutlery.
 
 ### On distant sounds
 
-Detection is limited by the microphone, not by these settings. A bark arriving
+Detection is limited by the microphone, not by these settings. A sound arriving
 below the microphone's self-noise cannot be recovered by gain, thresholds or
 normalisation, because all of them scale signal and noise together. If distant
-barks you can clearly hear produce no rise in the `peak` value logged at debug
+sounds you can clearly hear produce no rise in the `peak` value logged at debug
 level, the recording genuinely does not contain them, and the fix is microphone
 placement or a more sensitive/directional microphone.
 
 ## DailyBot integration (optional)
 
 Set `dailybot_workflow_url` to a [DailyBot](https://dailybot.com/) workflow
-trigger URL and each bark event is also POSTed there, for routing to Slack,
+trigger URL and each sound event is also POSTed there, for routing to Slack,
 Discord or a person. The payload carries the same fields as MQTT plus
 `event_type: hardware_sensor` and `secret: sensor`. Leave it empty to disable.
+
+## Recovering from a lost microphone
+
+If the microphone disappears for a moment (USB glitch, power dip, Home
+Assistant's audio plugin restarting), PortAudio does not report an error: the
+stream simply stops delivering audio. The detector watches for this:
+
+- after **10 s** without audio it closes the stream and reopens the microphone
+  (`No audio for ...; reopening the microphone` in the log);
+- if audio has still not returned after **120 s**, it exits so the add-on is
+  restarted from scratch.
+
+The second step only brings the add-on back if **Watchdog** is enabled on the
+add-on page; otherwise it stays stopped and the sensor goes stale.
 
 ## Troubleshooting
 
@@ -190,3 +222,10 @@ detector rather than crashing.
 **No audio sources listed** — see "Picking the microphone" above. Note that
 Home Assistant's audio plugin holds the ALSA devices, so another add-on reading
 `/dev/snd` directly can block this one.
+
+## Credits
+
+Sound Detector is derived from [Bark Detector](https://github.com/maomorales/bark-sensor-home-assistant)
+(`barkdetector`) by Mauricio Morales, MIT licensed. The folder name, slug and
+MQTT defaults keep the original `barkdetector` naming so that existing
+installations update in place.

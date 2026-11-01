@@ -38,7 +38,8 @@ configuration:
     name: Boost quiet audio before analysis
     description: >-
       Amplify each window towards a consistent level before classification.
-      YAMNet is level-sensitive, so this helps with distant or quiet barks. It
+      YAMNet is level-sensitive, so this helps with distant or quiet
+      sounds. It
       cannot recover sound already buried in background noise.
   normalize_noise_floor:
     name: Normalisation noise floor
@@ -61,7 +62,7 @@ configuration:
     description: Minimum seconds between two published events.
   mqtt_topic:
     name: MQTT topic
-    description: Topic bark events are published to.
+    description: Topic sound events are published to.
   mqtt_discovery:
     name: Enable MQTT discovery
     description: >-
@@ -106,4 +107,4 @@ configuration:
     description: Only used together with MQTT host.
   dailybot_workflow_url:
     name: DailyBot workflow URL (optional)
-    description: Post bark events to a DailyBot workflow in addition to MQTT.
+    description: Post sound events to a DailyBot workflow in addition to MQTT.

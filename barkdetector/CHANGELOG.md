@@ -1,5 +1,21 @@
 # Changelog
 
+Sound Detector is derived from [Bark Detector](https://github.com/maomorales/bark-sensor-home-assistant)
+by Mauricio Morales; versions up to 0.4.0 below are part of that history.
+
+## 0.6.2
+
+- Sound Detector is now presented as a project in its own right: a
+  multi-class sound-event sensor for home security rather than a dog-bark
+  detector. Name, maintainer, URLs, image labels, store page and
+  documentation describe what it does today, and credit Bark Detector as the
+  starting point. The folder, slug, service and MQTT defaults keep the
+  `barkdetector` name, so existing installations update in place with no new
+  entities.
+- LICENSE carries both the original author's and this project's copyright.
+- Documentation rewritten for the `sensor` entity (state = detected sound) that
+  replaced the bark `binary_sensor`, and for microphone-loss recovery.
+
 ## 0.6.1
 
 - Recover from a dead microphone stream. When the ALSA/PulseAudio side goes

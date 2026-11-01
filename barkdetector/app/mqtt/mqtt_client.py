@@ -73,7 +73,7 @@ class MQTTPublisher:
     def publish_discovery(self, device_id: str, device_name: str = "Sound Detector") -> None:
         """Announce a generic sound-classification sensor via HA MQTT discovery.
 
-        Unlike the original single-purpose "Bark" binary_sensor, this is a
+        Unlike the original Bark Detector's single "Bark" binary_sensor, this is a
         plain ``sensor`` whose *state* is the name of whichever watched class
         last matched (e.g. ``dog_bark``, ``glass_break``, ``siren``). That
         makes it trivial to trigger automations directly on state, e.g.::
@@ -112,7 +112,7 @@ class MQTTPublisher:
             "device": {
                 "identifiers": [object_id],
                 "name": device_name,
-                "manufacturer": "barkdetector",
+                "manufacturer": "Sound Detector",
                 "model": "YAMNet microphone sensor",
             },
         }

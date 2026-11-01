@@ -1,4 +1,4 @@
-"""Audio capture utilities for bark detection."""
+"""Audio capture utilities for sound-event detection."""
 
 from __future__ import annotations
 

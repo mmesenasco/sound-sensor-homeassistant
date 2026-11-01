@@ -1,1 +1,1 @@
-"""IO helpers for bark detector."""
+"""IO helpers for Sound Detector."""

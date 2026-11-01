@@ -36,7 +36,7 @@ RUN chmod a+x /etc/services.d/barkdetector/run \
     && chmod a+x /usr/bin/render_config.py
 
 LABEL \
-    org.opencontainers.image.title="Home Assistant App: Bark Detector" \
-    org.opencontainers.image.description="Dog bark detection from a local USB microphone via YAMNet, published to MQTT." \
-    org.opencontainers.image.source="https://github.com/maomorales/bark-sensor-home-assistant" \
+    org.opencontainers.image.title="Home Assistant App: Sound Detector" \
+    org.opencontainers.image.description="Local sound-event recognition from a USB microphone via YAMNet, published to MQTT." \
+    org.opencontainers.image.source="https://github.com/mmesenasco/sound-sensor-homeassistant" \
     org.opencontainers.image.licenses="MIT"

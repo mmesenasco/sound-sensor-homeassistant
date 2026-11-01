@@ -1,4 +1,4 @@
-# Example automations for the Sound Detector add-on (formerly "Bark Detector").
+# Example automations for the Sound Detector add-on (derived from "Bark Detector" by Mauricio Morales).
 # Paste into Settings -> Automations -> Create -> Edit in YAML.
 #
 # The add-on now creates a single `sensor.<device_id>_sound` entity whose

@@ -1,4 +1,4 @@
-"""Entry point for the bark detector PoC."""
+"""Entry point for Sound Detector (derived from Bark Detector)."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from mqtt.mqtt_client import MQTTConfig, MQTTPublisher
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Dog bark detector")
+    parser = argparse.ArgumentParser(description="Sound Detector: YAMNet sound-event recognition")
     parser.add_argument(
         "--config",
         default="config/config.yaml",
@@ -47,7 +47,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dailybot",
         action="store_true",
-        help="Enable DailyBot integration for bark events",
+        help="Enable DailyBot integration for sound events",
     )
     return parser.parse_args()
 
@@ -275,14 +275,14 @@ def build_mqtt(config: Dict[str, Any], dry_run: bool) -> Optional[MQTTPublisher]
 def send_dailybot_event(
     payload: Dict[str, Any], capture_path: Optional[Path], dailybot_url: str
 ) -> None:
-    """Send a POST request to DailyBot API when a bark is detected."""
-    # Build the DailyBot payload with required fields and all bark parameters
+    """Send a POST request to DailyBot API when a sound event is detected."""
+    # Build the DailyBot payload with required fields and all event parameters
     dailybot_payload = {
         "event_type": "hardware_sensor",
         "secret": "sensor",
     }
     
-    # Add all bark detection parameters
+    # Add all detection parameters
     dailybot_payload.update(payload)
     
     # Add capture_path if available
@@ -297,9 +297,9 @@ def send_dailybot_event(
             timeout=5.0,
         )
         response.raise_for_status()
-        logger.debug("Successfully sent bark event to DailyBot")
+        logger.debug("Successfully sent sound event to DailyBot")
     except requests.exceptions.RequestException as exc:
-        logger.warning("Failed to send bark event to DailyBot: {}", exc)
+        logger.warning("Failed to send sound event to DailyBot: {}", exc)
 
 
 def main() -> None:

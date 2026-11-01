@@ -1,1 +1,1 @@
-"""Bark detector package."""
+"""Sound Detector package (derived from Bark Detector)."""

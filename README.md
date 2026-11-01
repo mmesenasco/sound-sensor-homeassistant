@@ -1,11 +1,11 @@
+# Sound Detector — Home Assistant add-on
 
-# Bark Detector — Home Assistant add-on repository
-
-Detect dog barks from a **USB microphone attached to your Home Assistant
-machine**, and get a `binary_sensor` you can automate on.
+Recognise household sounds — **glass breaking, alarms and sirens, screams,
+knocks, speech, dog barks** — from a **USB microphone attached to your Home
+Assistant machine**, and turn them into a sensor you can automate on.
 
 Audio is classified locally by Google's [YAMNet][yamnet] via TensorFlow Lite.
-Nothing leaves your network.
+Nothing leaves your network, and there is no cloud service or account.
 
 [![Open your Home Assistant instance and show the add add-on repository dialog.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https://github.com/mmesenasco/sound-sensor-homeassistant)
 
@@ -17,7 +17,7 @@ Nothing leaves your network.
 https://github.com/mmesenasco/sound-sensor-homeassistant
 ```
 
-Then install **Bark Detector**. Full documentation is in
+Then install **Sound Detector**. Full documentation is in
 [`barkdetector/DOCS.md`](barkdetector/DOCS.md).
 
 > **The first install builds the image on your machine and takes a while** —
@@ -26,22 +26,29 @@ Then install **Bark Detector**. Full documentation is in
 > the numpy, scipy and TensorFlow Lite wheels, which is disk-bound rather than
 > CPU-bound. Later updates reuse cached layers and are much faster.
 
-## How it differs from what already exists
+## Why a local microphone
 
 [Frigate][frigate] and [yamcam][yamcam] classify audio from **camera RTSP
 streams**, and both work well. This add-on reads a **locally attached
-microphone**, for rooms with no camera or spots a camera cannot reach.
+microphone**, for rooms with no camera or spots a camera cannot reach — the
+typical use being a home-security "ear" that tells you when something happens
+while nobody is home.
 
 ## Features
 
-- YAMNet (TFLite) classification, with a heuristic fallback if the model fails
-  to load, so detection degrades rather than stops
-- MQTT discovery creates the `binary_sensor` — no manual YAML
+- Multi-class YAMNet (TFLite) classification: built-in groups (`dog_bark`,
+  `glass_break`, `alarm`, `scream`, `knock_doorbell`) plus any custom group you
+  define from YAMNet's 521 labels
+- A single MQTT-discovered `sensor` whose state is the last detected sound, with
+  `score` and `last_triggered` attributes — one entity, one automation per sound
 - MQTT credentials taken from the Mosquitto add-on via the Supervisor
 - Sliding-window voting with a cooldown, to reject one-off transients
+- Recovers by itself when the microphone stream dies (USB glitch, audio plugin
+  restart) instead of going silently deaf
+- Heuristic fallback if the model fails to load, so detection degrades rather
+  than stops
 - Optional clips saved to `/media`, playable in the Media panel, with the
-  confidence score in the filename
-- Storage bounded by both age and total size
+  confidence score in the filename; storage bounded by both age and total size
 
 Resource use on a Raspberry Pi 4: **1.3% CPU, 88 MB RAM**.
 
@@ -50,14 +57,14 @@ Resource use on a Raspberry Pi 4: **1.3% CPU, 88 MB RAM**.
 ```yaml
 triggers:
   - trigger: state
-    entity_id: binary_sensor.bark_detector_bark
-    to: "on"
+    entity_id: sensor.sound_detector_sound   # check the exact id in your HA
+    to: "glass_break"
 actions:
   - action: notify.notify
     data:
       message: >-
-        🐶 Bark detected (confidence
-        {{ state_attr('binary_sensor.bark_detector_bark', 'score') }})
+        🚨 Glass break detected (confidence
+        {{ state_attr('sensor.sound_detector_sound', 'score') }})
 ```
 
 More examples, including the raw MQTT form, in
@@ -65,7 +72,7 @@ More examples, including the raw MQTT form, in
 
 ## The microphone is the hard part
 
-If the dogs you care about are far away, **the microphone determines whether
+If the sounds you care about are far away, **the microphone determines whether
 this works** — not the software settings.
 
 Measured on the same Pi, in the same room, with identical settings:
@@ -97,8 +104,8 @@ The detector also runs on any Linux box without Home Assistant. The application
 lives in [`barkdetector/app/`](barkdetector/app).
 
 ```bash
-git clone https://github.com/maomorales/bark-sensor-home-assistant.git
-cd bark-sensor-home-assistant/barkdetector/app
+git clone https://github.com/mmesenasco/sound-sensor-homeassistant.git
+cd sound-sensor-homeassistant/barkdetector/app
 ./scripts/setup.sh
 cp config/example-config.yaml config/config.yaml   # then edit
 python3 main.py --config config/config.yaml
@@ -122,7 +129,8 @@ python3 main.py --config ... --dry-run     # detect without publishing
 
 ```
 repository.yaml          Home Assistant add-on repository manifest
-barkdetector/            the add-on
+barkdetector/            the add-on (folder and slug keep the original name,
+                         so existing installs update in place)
   config.yaml            options schema and add-on metadata
   Dockerfile             Debian-based image (see note below)
   build.yaml             per-architecture base images
@@ -141,10 +149,25 @@ is pinned to **bookworm** specifically, because bookworm ships Python 3.11 and
 against the NumPy 1.x C ABI, and NumPy 2.x makes the interpreter fail to load
 with `_ARRAY_API not found`.
 
+## Credits
+
+Sound Detector started from **[Bark Detector][upstream]** (`barkdetector`) by
+Mauricio Morales, a Home Assistant add-on that detects dog barks with YAMNet. Its
+add-on structure, audio pipeline, MQTT integration, clip capture and much of the
+microphone research in this README come from that project — thank you.
+
+This fork extends it into a general sound-event sensor for home security:
+multi-class and custom sound groups, a single multi-state sensor in place of the
+bark `binary_sensor`, repeat-event handling, and automatic recovery from a lost
+microphone stream. The internal folder, slug and MQTT defaults still carry the
+`barkdetector` name so that existing installations keep working.
+
 ## Licence
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). Copyright is shared between the original author of
+Bark Detector and the maintainer of this fork.
 
 [yamnet]: https://www.tensorflow.org/hub/tutorials/yamnet
 [frigate]: https://docs.frigate.video/configuration/audio_detectors/
 [yamcam]: https://github.com/cecat/CeC-HA-Addons
+[upstream]: https://github.com/maomorales/bark-sensor-home-assistant
