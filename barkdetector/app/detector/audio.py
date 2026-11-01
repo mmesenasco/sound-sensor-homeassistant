@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import queue
 import threading
 import time
@@ -32,6 +33,17 @@ class AudioStreamError(Exception):
     """Raised when the audio stream cannot be established."""
 
 
+# If no audio arrives for this long, the stream is considered dead and is
+# reopened. PortAudio does not raise when the ALSA/PulseAudio side goes away:
+# the callback simply stops firing, so without this the loop waits forever.
+STALL_SECONDS = 10.0
+
+# Last resort: if nothing has been yielded for this long (e.g. closing the dead
+# stream itself hangs inside PortAudio), kill the process so s6/Supervisor
+# restart the add-on instead of leaving it silently stuck.
+HARD_STALL_SECONDS = 120.0
+
+
 class AudioStreamProvider:
     """Provides resampled audio chunks ready for detection."""
 
@@ -39,6 +51,8 @@ class AudioStreamProvider:
         self.config = config
         self._stop_event = threading.Event()
         self._source_rate: Optional[int] = None
+        self._last_audio = time.monotonic()
+        self._watchdog: Optional[threading.Thread] = None
 
     @staticmethod
     def list_input_devices() -> List[Tuple[int, str, float, int]]:
@@ -61,6 +75,24 @@ class AudioStreamProvider:
         """Signal the audio stream to stop."""
         self._stop_event.set()
 
+    def _start_watchdog(self) -> None:
+        """Exit the process if audio stays stalled past HARD_STALL_SECONDS."""
+        if self._watchdog is not None:
+            return
+
+        def run() -> None:
+            while not self._stop_event.wait(5.0):
+                idle = time.monotonic() - self._last_audio
+                if idle > HARD_STALL_SECONDS:
+                    logger.critical(
+                        "No audio for {:.0f}s and the stream did not recover; exiting so the add-on restarts",
+                        idle,
+                    )
+                    os._exit(1)
+
+        self._watchdog = threading.Thread(target=run, name="audio-watchdog", daemon=True)
+        self._watchdog.start()
+
     def stream_chunks(self) -> Generator[np.ndarray, None, None]:
         """
         Yield audio chunks resampled to target sample rate.
@@ -70,6 +102,9 @@ class AudioStreamProvider:
         """
         target_rate = self.config.sample_rate
         hop_samples_target = max(1, int(round(self.config.hop_seconds * target_rate)))
+
+        self._last_audio = time.monotonic()
+        self._start_watchdog()
 
         while not self._stop_event.is_set():
             queue_: "queue.Queue[np.ndarray]" = queue.Queue(maxsize=8)
@@ -94,11 +129,23 @@ class AudioStreamProvider:
 
             try:
                 with stream:
+                    stream_last_audio = time.monotonic()
                     while not self._stop_event.is_set():
                         try:
                             chunk = queue_.get(timeout=1.0)
                         except queue.Empty:
+                            stalled = time.monotonic() - stream_last_audio
+                            if not stream.active or stalled > STALL_SECONDS:
+                                logger.warning(
+                                    "No audio for {:.1f}s (stream active={}); reopening the microphone",
+                                    stalled,
+                                    stream.active,
+                                )
+                                break
                             continue
+
+                        stream_last_audio = time.monotonic()
+                        self._last_audio = stream_last_audio
 
                         if chunk.size == 0:
                             continue

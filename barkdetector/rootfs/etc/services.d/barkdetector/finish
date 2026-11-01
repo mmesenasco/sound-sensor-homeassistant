@@ -1,7 +1,10 @@
-#!/usr/bin/execlineb -S1
-# Stop the whole container when the detector exits, so the Supervisor's
-# restart policy applies instead of s6 silently respawning a broken service.
-if { s6-test ${1} -ne 0 }
-if { s6-test ${1} -ne 256 }
-
-s6-svscanctl -t /var/run/s6/services
+#!/usr/bin/with-contenv bashio
+# shellcheck shell=bash
+# Stop the whole container when the detector exits with an error, so the
+# Supervisor (with Watchdog enabled) restarts the add-on instead of s6 silently
+# respawning a broken service. 256 = killed by a signal (normal shutdown).
+if [[ "${1}" -ne 0 ]] && [[ "${1}" -ne 256 ]]; then
+    bashio::log.warning "Sound detector exited with code ${1}; stopping the add-on"
+    echo "${1}" > /run/s6-linux-init-container-results/exitcode
+    exec /run/s6/basedir/bin/halt
+fi

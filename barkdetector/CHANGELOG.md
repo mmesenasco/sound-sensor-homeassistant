@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.1
+
+- Recover from a dead microphone stream. When the ALSA/PulseAudio side goes
+  away PortAudio stops calling back without raising, so the detector waited
+  forever and published nothing. The stream is now reopened after 10 s without
+  audio, and the process exits after 120 s so the add-on is restarted.
+- Fix the service `finish` script, which called `s6-test` (missing on s6-overlay
+  v3) and never stopped the container after a crash.
+
 ## 0.4.0
 
 - Report the strongest score across the voting window rather than the last
